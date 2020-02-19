@@ -224,11 +224,10 @@
                             columns[0].push(APPIDS[i])
                             columns[1].push(appinfo["name"])
                             if (cardinfo["normal"]["count"]!=0){
-                                let cnt, avg
-                                columns[2].push(cnt=cardinfo["normal"]["count"])
-                                columns[3].push(round2(avg=cardinfo["normal"]["average"]))
-                                columns[4].push(round2(Math.ceil(cnt/2)*avg))
-                                columns[5].push(round2(cnt*avg))
+                                columns[2].push(appinfo["card"]["normal"]["count"])
+                                columns[3].push(round2(cardinfo["normal"]["average"]))
+                                columns[4].push(round2(Math.ceil(cardinfo["normal"]["count"]/2)*cardinfo["normal"]["average"]))
+                                columns[5].push(round2(cardinfo["normal"]["count"]*cardinfo["normal"]["average"]))
 
                                 if (cardinfo["normal"]["count"] != appinfo["card"]["normal"]["count"]) {
                                     columns[6].push("其乐数据库与steam市场卡牌数量不一致")
@@ -242,6 +241,7 @@
                             }
                         }
 
+                        let symbol = CARDINFO_ST["currency"]
                         makeTable(
                             ["appid","名称","普卡数","普卡均价("+symbol+")","普卡半套("+symbol+")","普卡一套("+symbol+")","备注"],
                             columns,
