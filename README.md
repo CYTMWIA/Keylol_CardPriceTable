@@ -12,13 +12,14 @@
 另外：
 
 只有steam市场上存在的卡牌参与了均价的计算<br>
-换句话说，就是无人上架的卡牌并不算在内
+换句话说，就是无人上架的卡牌并不算在内<br>
+而且，若发生这种情况，备注通常会告知您
 
 关于货币，这是由您浏览器内的所登录的steam账户决定的<br>
 比如，您的steam市场是用￥结算，那么这里的货币就是￥
 
 效果图：
-![](https://pic.downk.cc/item/5e4be65f48b86553ee5f1a53.png)
-![](https://pic.downk.cc/item/5e4be65f48b86553ee5f1a55.png)
+![](https://pic.downk.cc/item/5e4d41c948b86553eeac9a91.png)
+![](https://pic.downk.cc/item/5e4d41c948b86553eeac9a8f.png)
 
 2020.2.19
