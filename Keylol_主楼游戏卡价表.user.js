@@ -1,9 +1,11 @@
 // ==UserScript==
 // @name         Keylol_主楼游戏卡价表
-// @version      2020.2.18
+// @version      2020.2.22
 // @description  计算主楼游戏的卡牌价格
 // @author       CYTMWIA
 // @match        http*://keylol.com/t*
+// @match        http*://keylol.com/forum.php?*mod=viewthread*tid=*
+// @match        http*://keylol.com/forum.php?*tid=*mod=viewthread*
 // @grant        GM_xmlhttpRequest
 // ==/UserScript==
 
