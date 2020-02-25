@@ -1,11 +1,10 @@
 // ==UserScript==
 // @name         Keylol_主楼游戏卡价表
-// @version      2020.2.22
+// @version      2020.2.25
 // @description  计算主楼游戏的卡牌价格
 // @author       CYTMWIA
 // @match        http*://keylol.com/t*
-// @match        http*://keylol.com/forum.php?*mod=viewthread*tid=*
-// @match        http*://keylol.com/forum.php?*tid=*mod=viewthread*
+// @match        http*://keylol.com/forum.php?*mod=viewthread*
 // @grant        GM_xmlhttpRequest
 // ==/UserScript==
 
@@ -137,20 +136,21 @@
 
     let APPINFO_KLDB = {} // 数据来自 steamdb.keylol.com , 与现实数据有延迟, 
     let CARDINFO_ST = {"currency":""} // 所以卡牌数据额外从steam市场获取
-    let REQUESTING = false //记录当前是否正在请求
+    let REQUESTING = 0 //记录当前存活请求数
     function getAppInfo(appid,callback) {
         if (APPINFO_KLDB[appid] != undefined) {
             callback()
         } else {
-            REQUESTING = true
+            REQUESTING+=1
             GM_xmlhttpRequest({
                 method: 'GET',
                 url: "https://steamdb.keylol.com/app/"+appid+"/data.js?v=38",
                 timeout:2000,
-                onabort: function(){ REQUESTING=false },
-                onerror: function(){ REQUESTING=false },
-                ontimeout: function(){ REQUESTING=false },
+                onabort: function(){ REQUESTING-=1 },
+                onerror: function(){ REQUESTING-=1 },
+                ontimeout: function(){ REQUESTING-=1 },
                 onload: function (response) {
+                    REQUESTING-=1
                     if (response.status === 200) {
                         let text = response.responseText
                         APPINFO_KLDB[appid] = JSON.parse(text.substring(5,text.lastIndexOf(")")))
@@ -159,7 +159,6 @@
                         console.log("从 steamdb.keylol.com 查询 "+appid+" 失败")
                         console.log(response)
                     }
-                    REQUESTING=false
                 }
             })
         }
@@ -168,15 +167,16 @@
         if (CARDINFO_ST[appid] != undefined) {
             callback()
         } else {
-            REQUESTING=true
+            REQUESTING+=1
             GM_xmlhttpRequest({
                 method: 'GET',
                 url: "https://steamcommunity.com/market/search/render/?start=0&count=32&appid=753&category_753_Game[]=tag_app_"+appid+"&category_753_cardborder[]=tag_cardborder_0&category_753_item_class[]=tag_item_class_2&norender=1",
                 timeout:8000,
-                onabort: function(){ REQUESTING=false },
-                onerror: function(){ REQUESTING=false },
-                ontimeout: function(){ REQUESTING=false },
+                onabort: function(){ REQUESTING-=1 },
+                onerror: function(){ REQUESTING-=1 },
+                ontimeout: function(){ REQUESTING-=1 },
                 onload: function (response) {
+                    REQUESTING-=1
                     if (response.status === 200) {
                         let json = JSON.parse(response.responseText)
                         if (json["success"]==true) {
@@ -204,14 +204,13 @@
                         console.log("从 steam市场 搜索 "+appid+" 失败")
                         console.log(response)
                     }
-                    REQUESTING=false
                 }
             })
         }
     }
 
     document.getElementById("cal_btn").addEventListener("click",()=>{
-        if (!REQUESTING)
+        if (REQUESTING<=0)
             APPIDS.forEach((appid,index)=>{
                 getAppInfo(appid,()=>{
                     getCardInfo(appid, ()=>{
