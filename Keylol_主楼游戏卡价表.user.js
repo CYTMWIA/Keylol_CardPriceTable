@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         Keylol_主楼游戏卡价表
-// @version      2020.2.25
+// @version      2020.3.3
 // @description  计算主楼游戏的卡牌价格
 // @author       CYTMWIA
 // @match        http*://keylol.com/t*
@@ -11,17 +11,74 @@
 (function() {
     'use strict';
 
-    // 主楼
+    let REQUESTING = 0 //记录当前存活请求数
+    function request(kwargs={}) {
+        REQUESTING+=1
+
+        let _kwargs = {
+            method:"GET",
+            timeout:3000,
+        }
+        for (let [key,val] of Object.entries(kwargs)) {
+            if (["onabort","onerror","ontimeout","onload"].includes(key)) {
+                _kwargs[key] = (response) => {
+                    REQUESTING-=1
+                    val(response)
+                }
+            } else {
+                _kwargs[key] = val
+            }
+        }
+        
+        return GM_xmlhttpRequest(_kwargs)
+    }
+
+    // 主楼及帖子信息
     let MAIN_POST = document.getElementById("postlist").children[1]
-    
-    // 基本信息 appid
+    let PID = MAIN_POST.id.substring(5)
+    let TID = document.getElementById("thread_subject").href
+    TID = TID.substring(TID.lastIndexOf("/")+2,TID.indexOf("-"))
+
     let APPIDS = []
-    let links = MAIN_POST.getElementsByClassName("steam-info-link")
-    for (let i=0;i<links.length;i+=1) {
-        let appid = links[i].href.split("/")[4]
+    function addAppid(appid) {
         if (!APPIDS.includes(appid))
             APPIDS.push(appid)
     }
+    function addAppidsFromLink (link) {
+        let appid = link.split("/")[4]
+        addAppid(appid)
+    }
+    function addAppidsFromElement (ele) {
+        let links = ele.getElementsByClassName("steam-info-link")
+        for (let i=0;i<links.length;i+=1) {
+            addAppidsFromLink(links[i].href)
+        }
+    }
+    function addAppidsFromString(s) {
+        let links = s.match(/https:\/\/store\.steampowered\.com\/app\/\d+\//g)
+        for (let link of links) {
+            addAppidsFromLink(link)
+        }
+    }
+
+    addAppidsFromElement(MAIN_POST)
+
+    let threadindex = document.getElementById("threadindex") //目录
+    if (threadindex != null) {
+        let max = threadindex.getElementsByTagName("li").length
+        if (max>=2) {
+            for (let i=2;i<=max;i+=1) {
+                request({
+                    method:"GET",
+                    url:"https://keylol.com/forum.php?mod=viewthread&threadindex=yes&tid="+TID+"&viewpid="+PID+"&cp="+i,
+                    onload:(response) => {
+                        addAppidsFromString(response.responseText)
+                    }
+                })
+            }
+        }
+    }
+
 
     if (APPIDS.length==0) {
         return; // 无商店链接
@@ -48,6 +105,11 @@
         +"    background-color: rgb(87, 186, 232);"
         +"    color: white;"
         +"}"
+        +".text_block_grey {"
+        +"    border-style: none;"
+        +"    background-color: grey;"
+        +"    color: lightgray;"
+        +"}"
         +".cal_btn {"
         +"    position: relative;"
         +"    top: 1.5ex;"
@@ -60,7 +122,7 @@
         +'<br>'
         +'<div class="t_fsz" style="background-color: rgb(229, 237, 242);">'
         +'    <div class="text_block">卡牌价格表</div>'
-        +'    <button id="cal_btn" class="text_block cal_btn">生成表格</button>'
+        +'    <button id="cal_btn" class="text_block_grey cal_btn">生成表格</button>'
         +'    <br><br>'
         +'    <table id="price_table" class="price_table" style="border-style: solid;">'
         +'    </table>'
@@ -68,6 +130,7 @@
         + MAIN_POST.getElementsByClassName("plc")[0].innerHTML
 
     let PRICE_TABLE = document.getElementById("price_table")
+    let CAL_BTN = document.getElementById("cal_btn")
 
     function addRow(lst,classname="grid_close") {
         if (lst==null)
@@ -135,22 +198,14 @@
     }
 
     let APPINFO_KLDB = {} // 数据来自 steamdb.keylol.com , 与现实数据有延迟, 
-    let CARDINFO_ST = {"currency":""} // 所以卡牌数据额外从steam市场获取
-    let REQUESTING = 0 //记录当前存活请求数
     function getAppInfo(appid,callback) {
         if (APPINFO_KLDB[appid] != undefined) {
             callback()
         } else {
-            REQUESTING+=1
-            GM_xmlhttpRequest({
-                method: 'GET',
+            request({
+                method: "GET",
                 url: "https://steamdb.keylol.com/app/"+appid+"/data.js?v=38",
-                timeout:2000,
-                onabort: function(){ REQUESTING-=1 },
-                onerror: function(){ REQUESTING-=1 },
-                ontimeout: function(){ REQUESTING-=1 },
                 onload: function (response) {
-                    REQUESTING-=1
                     if (response.status === 200) {
                         let text = response.responseText
                         APPINFO_KLDB[appid] = JSON.parse(text.substring(5,text.lastIndexOf(")")))
@@ -163,20 +218,17 @@
             })
         }
     }
+
+    let CARDINFO_ST = {"currency":""} // 卡牌数据额外从steam市场获取
     function getCardInfo(appid,callback) {
         if (CARDINFO_ST[appid] != undefined) {
             callback()
         } else {
-            REQUESTING+=1
-            GM_xmlhttpRequest({
-                method: 'GET',
+            request({
+                method: "GET",
                 url: "https://steamcommunity.com/market/search/render/?start=0&count=32&appid=753&category_753_Game[]=tag_app_"+appid+"&category_753_cardborder[]=tag_cardborder_0&category_753_item_class[]=tag_item_class_2&norender=1",
-                timeout:8000,
-                onabort: function(){ REQUESTING-=1 },
-                onerror: function(){ REQUESTING-=1 },
-                ontimeout: function(){ REQUESTING-=1 },
+                timeout: 8000,
                 onload: function (response) {
-                    REQUESTING-=1
                     if (response.status === 200) {
                         let json = JSON.parse(response.responseText)
                         if (json["success"]==true) {
@@ -209,7 +261,15 @@
         }
     }
 
-    document.getElementById("cal_btn").addEventListener("click",()=>{
+    setInterval(()=>{
+        if (REQUESTING) {
+            CAL_BTN.className = "text_block_grey cal_btn"
+        } else {
+            CAL_BTN.className = "text_block cal_btn"
+        }
+    },200)
+
+    CAL_BTN.addEventListener("click",()=>{
         if (REQUESTING<=0)
             APPIDS.forEach((appid,index)=>{
                 getAppInfo(appid,()=>{
