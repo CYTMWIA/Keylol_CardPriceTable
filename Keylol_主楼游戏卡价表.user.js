@@ -44,20 +44,20 @@
         if (!APPIDS.includes(appid))
             APPIDS.push(appid)
     }
-    function addAppidsFromLink (link) {
+    function addAppidFromLink (link) {
         let appid = link.split("/")[4]
         addAppid(appid)
     }
     function addAppidsFromElement (ele) {
         let links = ele.getElementsByClassName("steam-info-link")
         for (let i=0;i<links.length;i+=1) {
-            addAppidsFromLink(links[i].href)
+            addAppidFromLink(links[i].href)
         }
     }
     function addAppidsFromString(s) {
         let links = s.match(/https:\/\/store\.steampowered\.com\/app\/\d+\//g)
         for (let link of links) {
-            addAppidsFromLink(link)
+            addAppidFromLink(link)
         }
     }
 
@@ -117,20 +117,23 @@
         +"}"
         +"</style>"
 
-    // 添加UI元素
-    MAIN_POST.getElementsByClassName("plc")[0].innerHTML = ""
-        +'<br>'
-        +'<div class="t_fsz" style="background-color: rgb(229, 237, 242);">'
-        +'    <div class="text_block">卡牌价格表</div>'
-        +'    <button id="cal_btn" class="text_block_grey cal_btn">生成表格</button>'
-        +'    <br><br>'
-        +'    <table id="price_table" class="price_table" style="border-style: solid;">'
-        +'    </table>'
-        +'</div>'
-        + MAIN_POST.getElementsByClassName("plc")[0].innerHTML
+    // 添加UI
+    let PRICE_TABLE, CAL_BTN
+    function addTable() {
+        MAIN_POST.getElementsByClassName("plc")[0].innerHTML = ""
+            +'<br>'
+            +'<div class="t_fsz" style="background-color: rgb(229, 237, 242);">'
+            +'    <div class="text_block">卡牌价格表</div>'
+            +'    <button id="cal_btn" class="text_block_grey cal_btn">生成表格</button>'
+            +'    <br><br>'
+            +'    <table id="price_table" class="price_table" style="border-style: solid;">'
+            +'    </table>'
+            +'</div>'
+            + MAIN_POST.getElementsByClassName("plc")[0].innerHTML
 
-    let PRICE_TABLE = document.getElementById("price_table")
-    let CAL_BTN = document.getElementById("cal_btn")
+        PRICE_TABLE = document.getElementById("price_table")
+        CAL_BTN = document.getElementById("cal_btn")
+    }
 
     function addRow(lst,classname="grid_close") {
         if (lst==null)
@@ -197,7 +200,7 @@
         addRow(endrow)
     }
 
-    let APPINFO_KLDB = {} // 数据来自 steamdb.keylol.com , 与现实数据有延迟, 
+    let APPINFO_KLDB = {} // 数据来自 steamdb.keylol.com , 卡牌价格数据与现实数据有延迟, 
     function getAppInfo(appid,callback) {
         if (APPINFO_KLDB[appid] != undefined) {
             callback()
@@ -209,17 +212,17 @@
                     if (response.status === 200) {
                         let text = response.responseText
                         APPINFO_KLDB[appid] = JSON.parse(text.substring(5,text.lastIndexOf(")")))
-                        callback()
                     } else {
                         console.log("从 steamdb.keylol.com 查询 "+appid+" 失败")
                         console.log(response)
                     }
+                    callback()
                 }
             })
         }
     }
 
-    let CARDINFO_ST = {"currency":""} // 卡牌数据额外从steam市场获取
+    let CARDINFO_ST = {} // 卡牌价格数据额外从steam市场获取
     function getCardInfo(appid,callback) {
         if (CARDINFO_ST[appid] != undefined) {
             callback()
@@ -245,10 +248,8 @@
                                     return v1+v2["sell_price"]
                                 },0) / json["total_count"] / 100
 
-                                if (CARDINFO_ST["currency"]=="")
+                                if (CARDINFO_ST["currency"]==undefined)
                                     CARDINFO_ST["currency"] = json["results"][0]["sell_price_text"].replace(/\d+\.*\d*/,"").trim()
-
-                                callback()
                             }
                         }
                     }
@@ -256,20 +257,14 @@
                         console.log("从 steam市场 搜索 "+appid+" 失败")
                         console.log(response)
                     }
+
+                    callback()
                 }
             })
         }
     }
 
-    setInterval(()=>{
-        if (REQUESTING) {
-            CAL_BTN.className = "text_block_grey cal_btn"
-        } else {
-            CAL_BTN.className = "text_block cal_btn"
-        }
-    },200)
-
-    CAL_BTN.addEventListener("click",()=>{
+    function onclick_CAL_BTN() {
         if (REQUESTING<=0)
             APPIDS.forEach((appid,index)=>{
                 getAppInfo(appid,()=>{
@@ -308,8 +303,22 @@
                             columns,
                             ["总和","","{sum}","","{sum}","{sum}",""]
                         )
+                    })
                 })
             })
-        })
-    })
+    }
+
+    setInterval(()=>{
+        if (document.getElementById("price_table")==null){
+            addTable()
+            CAL_BTN.addEventListener("click",onclick_CAL_BTN)
+        }
+
+        if (REQUESTING) {
+            CAL_BTN.className = "text_block_grey cal_btn"
+        } else {
+            CAL_BTN.className = "text_block cal_btn"
+        }
+    },250)
+
 })();
