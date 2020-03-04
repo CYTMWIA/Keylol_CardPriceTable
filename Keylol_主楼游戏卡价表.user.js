@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         Keylol_主楼游戏卡价表
-// @version      2020.3.3
+// @version      2020.3.4
 // @description  计算主楼游戏的卡牌价格
 // @author       CYTMWIA
 // @match        http*://keylol.com/t*
@@ -18,6 +18,10 @@
         let _kwargs = {
             method:"GET",
             timeout:3000,
+            onabort: ()=>{REQUESTING-=1},
+            onerror: ()=>{REQUESTING-=1},
+            ontimeout: ()=>{REQUESTING-=1},
+            onload: ()=>{REQUESTING-=1},
         }
         for (let [key,val] of Object.entries(kwargs)) {
             if (["onabort","onerror","ontimeout","onload"].includes(key)) {
