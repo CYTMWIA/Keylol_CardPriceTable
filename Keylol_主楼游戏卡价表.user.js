@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         Keylol_主楼游戏卡价表
-// @version      2020.3.5.0
+// @version      2020.3.5.1
 // @description  计算主楼游戏的卡牌价格
 // @author       CYTMWIA
 // @match        http*://keylol.com/t*
@@ -53,7 +53,7 @@
         addAppid(appid)
     }
     function addAppidsFromString(s) {
-        let links = s.match(/https:\/\/store\.steampowered\.com\/app\/\d+\//g)
+        let links = s.match(/https:\/\/store\.steampowered\.com\/app\/\d+/g)
         for (let link of links) {
             addAppidFromLink(link)
         }
@@ -80,6 +80,8 @@
 
     if (APPIDS.length==0) {
         return; // 无商店链接
+    } else {
+        console.log("主楼含有的Appids",APPIDS)
     }
 
     // UI sytle
@@ -207,8 +209,7 @@
                         let text = response.responseText
                         APPINFO_KLDB[appid] = JSON.parse(text.substring(5,text.lastIndexOf(")")))
                     } else {
-                        console.log("从 steamdb.keylol.com 查询 "+appid+" 失败")
-                        console.log(response)
+                        console.log("从 steamdb.keylol.com 查询 "+appid+" 失败", response)
                     }
                     callback()
                 }
@@ -251,9 +252,9 @@
                             }
                         }
                     }
+
                     if (CARDINFO_ST[appid]==undefined) {
-                        console.log("从 steam市场 搜索 "+appid+" 失败")
-                        console.log(response)
+                        console.log("从 Steam市场 搜索 "+appid+" 失败", response)
                     }
 
                     callback()
@@ -320,10 +321,20 @@
         if (REQUESTING<=0)
             APPIDS.forEach((appid,index)=>{
                 getAppInfo(appid,()=>{
-                    if (APPINFO_KLDB[appid]==undefined) return;
+                    if (APPINFO_KLDB[appid]==undefined) {
+                        console.log("从 steamdb.keylol.com 查询 "+appid+" 失败")
+                        return;
+                    }
 
                     if (!isDlc(appid)) {
-                        getCardInfo(appid, ()=>{ makeTableWithData() })
+                        getCardInfo(appid, ()=>{ 
+                            if (CARDINFO_ST[appid]==undefined) {
+                                console.log("从 Steam市场 搜索 "+appid+" 失败")
+                                return;
+                            }
+
+                            makeTableWithData() 
+                        })
                     }
                 })
             })
