@@ -36,7 +36,7 @@
 所以按钮“生成表格”会有一段时间为灰色（不可用）
 
 ---
-###效果图（图中的绿色标记并非脚本功能）：
+### 效果图（图中的绿色标记并非脚本功能）：
 ![](https://i.loli.net/2020/03/05/zTy3KsgUt7xXnif.png)
 ![](https://i.loli.net/2020/03/05/lLWOwkNd6Jqvb4P.png)
 ![](https://i.loli.net/2020/03/05/I4n2NJEG59hjOgB.png)
