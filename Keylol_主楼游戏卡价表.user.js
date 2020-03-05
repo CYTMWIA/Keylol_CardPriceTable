@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         Keylol_主楼游戏卡价表
-// @version      2020.3.4
+// @version      2020.3.5.0
 // @description  计算主楼游戏的卡牌价格
 // @author       CYTMWIA
 // @match        http*://keylol.com/t*
@@ -52,12 +52,6 @@
         let appid = link.split("/")[4]
         addAppid(appid)
     }
-    function addAppidsFromElement (ele) {
-        let links = ele.getElementsByClassName("steam-info-link")
-        for (let i=0;i<links.length;i+=1) {
-            addAppidFromLink(links[i].href)
-        }
-    }
     function addAppidsFromString(s) {
         let links = s.match(/https:\/\/store\.steampowered\.com\/app\/\d+\//g)
         for (let link of links) {
@@ -65,7 +59,7 @@
         }
     }
 
-    addAppidsFromElement(MAIN_POST)
+    addAppidsFromString(MAIN_POST.innerHTML)
 
     let threadindex = document.getElementById("threadindex") //目录
     if (threadindex != null) {
@@ -114,30 +108,41 @@
         +"    background-color: grey;"
         +"    color: lightgray;"
         +"}"
-        +".cal_btn {"
+        +".btn_c1 {"
+        +"    position: relative;"
+        +"    left: 10px;"
+        +"}"
+        +".btn_c2 {"
+        +"    position: relative;"
+        +"    left: 20px;"
+        +"}"
+        +".btn_r1 {"
         +"    position: relative;"
         +"    top: 1.5ex;"
-        +"    left: 10px;"
         +"}"
         +"</style>"
 
-    // 添加UI
-    let PRICE_TABLE, CAL_BTN
-    function addTable() {
-        MAIN_POST.getElementsByClassName("plc")[0].innerHTML = ""
-            +'<br>'
-            +'<div class="t_fsz" style="background-color: rgb(229, 237, 242);">'
-            +'    <div class="text_block">卡牌价格表</div>'
-            +'    <button id="cal_btn" class="text_block_grey cal_btn">生成表格</button>'
-            +'    <br><br>'
-            +'    <table id="price_table" class="price_table" style="border-style: solid;">'
-            +'    </table>'
-            +'</div>'
-            + MAIN_POST.getElementsByClassName("plc")[0].innerHTML
-
-        PRICE_TABLE = document.getElementById("price_table")
-        CAL_BTN = document.getElementById("cal_btn")
+    function round2(num) {
+        return Math.round(num*100)/100
     }
+
+    function sumArray(a) {
+        return a.reduce((acc,cur)=>{
+            return acc+cur
+        })
+    }
+
+    function averageArray(a) {
+        return sumArray(a)/a.length
+    }
+
+    // UI
+    let PRICE_TABLE, CAL_BTN, HIDE0CARD_BTN
+    
+    let HIDE0CARD = false
+    
+    let APPINFO_KLDB = {} // 数据来自 steamdb.keylol.com , 卡牌价格数据与现实数据有延迟, 
+    let CARDINFO_ST = {} // 卡牌价格数据额外从steam市场获取
 
     function addRow(lst,classname="grid_close") {
         if (lst==null)
@@ -152,20 +157,6 @@
 
     function clearTable() {
         PRICE_TABLE.innerHTML=""
-    }
-
-    function round2(num) {
-        return Math.round(num*100)/100
-    }
-
-    function sumArray(a) {
-        return a.reduce((acc,cur)=>{
-            return acc+cur
-        })
-    }
-
-    function averageArray(a) {
-        return sumArray(a)/a.length
     }
 
     function makeTable(headrow,columns,endrow) {
@@ -204,7 +195,6 @@
         addRow(endrow)
     }
 
-    let APPINFO_KLDB = {} // 数据来自 steamdb.keylol.com , 卡牌价格数据与现实数据有延迟, 
     function getAppInfo(appid,callback) {
         if (APPINFO_KLDB[appid] != undefined) {
             callback()
@@ -226,7 +216,11 @@
         }
     }
 
-    let CARDINFO_ST = {} // 卡牌价格数据额外从steam市场获取
+    function isDlc(appid) {
+        let description = APPINFO_KLDB[appid]["description"]
+        return /该内容需要在 Steam 拥有基础游戏.*?才能运行/.test(description)
+    }
+    
     function getCardInfo(appid,callback) {
         if (CARDINFO_ST[appid] != undefined) {
             callback()
@@ -268,60 +262,116 @@
         }
     }
 
+    function makeTableWithData(){
+        let columns = [[/* appid */],[/* 名称 */],[/* 普卡数 */],[/* 普卡均价 */],[/* 普卡半套 */],[/* 普卡一套  */],[/* 备注 */]]
+        for (let i=0;i<=APPIDS.length;i+=1) {
+            let appinfo = APPINFO_KLDB[APPIDS[i]]
+            let cardinfo = CARDINFO_ST[APPIDS[i]]
+            if (appinfo==undefined||cardinfo==undefined)
+                continue
+
+            // nc 前缀表示普通卡
+            // ncklc: 表示其乐数据库普卡数
+            // ncstc: Steam市场普卡数
+            let appid, name, ncklc, ncstc, ncavg, nchalf, ncall, remark
+
+            appid=ncklc=ncstc=ncavg=nchalf=ncall=0
+            name=remark=""
+
+            appid = APPIDS[i] 
+            name = '<a href="https://store.steampowered.com/app/'+appid+'" target="_blank" class="steam-info-link">'+appinfo["name"]+'</a>'
+
+            if (appinfo["card"]!=undefined)
+                ncklc = appinfo["card"]["normal"]["count"]
+            ncstc = cardinfo["normal"]["count"]
+
+            if (HIDE0CARD&&ncklc==0&&ncstc==0) continue 
+
+            if (ncstc>0) {
+                ncavg = round2(cardinfo["normal"]["average"])
+                nchalf = round2(Math.ceil(cardinfo["normal"]["count"]/2)*cardinfo["normal"]["average"])
+                ncall = round2(cardinfo["normal"]["count"]*cardinfo["normal"]["average"])
+            }
+
+            if (ncklc!=ncstc) {
+                remark = ""
+                +"其乐数据库普卡数："+appinfo["card"]["normal"]["count"]
+                +"<br>Steam市场普卡数："+cardinfo["normal"]["count"]
+            }
+            
+            columns[0].push(appid)
+            columns[1].push(name)
+            columns[2].push(ncklc)
+            columns[3].push(ncavg)
+            columns[4].push(nchalf)
+            columns[5].push(ncall)
+            columns[6].push(remark)
+        }
+
+        let symbol = CARDINFO_ST["currency"]
+        makeTable(
+            ["appid","名称","普卡数","普卡均价("+symbol+")","普卡半套("+symbol+")","普卡一套("+symbol+")","备注"],
+            columns,
+            ["总和","","{sum}","","{sum}","{sum}",""]
+        )
+    }
+
     function onclick_CAL_BTN() {
         if (REQUESTING<=0)
             APPIDS.forEach((appid,index)=>{
                 getAppInfo(appid,()=>{
-                    getCardInfo(appid, ()=>{
+                    if (APPINFO_KLDB[appid]==undefined) return;
 
-                        let columns = [[],[],[],[],[],[],[]]
-                        for (let i=0;i<=APPIDS.length;i+=1) {
-                            let appinfo = APPINFO_KLDB[APPIDS[i]]
-                            let cardinfo = CARDINFO_ST[APPIDS[i]]
-                            if (appinfo==undefined||cardinfo==undefined)
-                                continue
-
-                            columns[0].push(APPIDS[i])
-                            columns[1].push(appinfo["name"])
-                            if (cardinfo["normal"]["count"]!=0){
-                                columns[2].push(appinfo["card"]["normal"]["count"])
-                                columns[3].push(round2(cardinfo["normal"]["average"]))
-                                columns[4].push(round2(Math.ceil(cardinfo["normal"]["count"]/2)*cardinfo["normal"]["average"]))
-                                columns[5].push(round2(cardinfo["normal"]["count"]*cardinfo["normal"]["average"]))
-
-                                if (cardinfo["normal"]["count"] != appinfo["card"]["normal"]["count"]) {
-                                    columns[6].push("其乐数据库与steam市场卡牌数量不一致")
-                                } else {
-                                    columns[6].push("")
-                                }
-                            } else {
-                                for (let j=2;j<6;j+=1)
-                                    columns[j].push(0)
-                                columns[6].push("")
-                            }
-                        }
-
-                        let symbol = CARDINFO_ST["currency"]
-                        makeTable(
-                            ["appid","名称","普卡数","普卡均价("+symbol+")","普卡半套("+symbol+")","普卡一套("+symbol+")","备注"],
-                            columns,
-                            ["总和","","{sum}","","{sum}","{sum}",""]
-                        )
-                    })
+                    if (!isDlc(appid)) {
+                        getCardInfo(appid, ()=>{ makeTableWithData() })
+                    }
                 })
             })
     }
 
+    function onclick_HIDE0CARD_BTN() {
+        HIDE0CARD = !HIDE0CARD
+        if (Object.keys(APPINFO_KLDB).length>0)
+            makeTableWithData()
+    }
+
+    function addUi() {
+        MAIN_POST.getElementsByClassName("plc")[0].innerHTML = ''
+            +'<br>'
+            +'<div class="t_fsz" style="background-color: rgb(229, 237, 242);">'
+            +'    <div class="text_block">卡牌价格表</div>'
+            +'    <button id="cal_btn" class="text_block_grey btn_r1 btn_c1">生成表格</button>'
+            +'    <button id="hide0card_btn" class="text_block btn_r1 btn_c2">隐藏无卡</button>'
+            +'    <br><br>'
+            +'    <table id="price_table" class="price_table" style="border-style: solid;">'
+            +'    </table>'
+            +'</div>'
+            + MAIN_POST.getElementsByClassName("plc")[0].innerHTML
+
+        PRICE_TABLE = document.getElementById("price_table")
+        
+        CAL_BTN = document.getElementById("cal_btn")
+        CAL_BTN.addEventListener("click",onclick_CAL_BTN)
+        
+        HIDE0CARD_BTN = document.getElementById("hide0card_btn")
+        HIDE0CARD_BTN.addEventListener("click",onclick_HIDE0CARD_BTN)
+    }
+
     setInterval(()=>{
         if (document.getElementById("price_table")==null){
-            addTable()
-            CAL_BTN.addEventListener("click",onclick_CAL_BTN)
+            addUi()
         }
 
         if (REQUESTING) {
-            CAL_BTN.className = "text_block_grey cal_btn"
+            CAL_BTN.className = "text_block_grey btn_r1 btn_c1"
         } else {
-            CAL_BTN.className = "text_block cal_btn"
+            CAL_BTN.className = "text_block btn_r1 btn_c1"
+        }
+
+        if (HIDE0CARD) {
+            HIDE0CARD_BTN.innerText = "显示无卡"
+        } else {
+            HIDE0CARD_BTN.innerText = "隐藏无卡"
         }
     },250)
 
