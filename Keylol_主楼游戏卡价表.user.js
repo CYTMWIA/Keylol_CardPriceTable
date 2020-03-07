@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         Keylol_主楼游戏卡价表
-// @version      2020.3.7.0
+// @version      2020.3.7.1
 // @description  计算主楼游戏的卡牌价格
 // @author       CYTMWIA
 // @match        http*://keylol.com/t*
@@ -129,14 +129,14 @@
         return Math.round(num*100)/100
     }
 
-    function sumArray(a) {
+    function sumArray(a,val_func=(v)=>{return v}) {
         return a.reduce((acc,cur)=>{
-            return acc+cur
-        })
+            return acc+val_func(cur)
+        }, 0)
     }
 
-    function averageArray(a) {
-        return sumArray(a)/a.length
+    function averageArray(a,val_func=(v)=>{return v}) {
+        return sumArray(a,val_func)/a.length
     }
 
     // UI
@@ -208,7 +208,8 @@
                 onload: function (response) {
                     if (response.status === 200) {
                         let text = response.responseText
-                        APPINFO_KLDB[appid] = JSON.parse(text.substring(5,text.lastIndexOf(')')))
+                        let proc = (obj) => { return obj } // will be used in eval
+                        APPINFO_KLDB[appid] = eval(text)
                     } else {
                         console.log('从 steamdb.keylol.com 查询 '+appid+' 失败', response)
                     }
@@ -220,38 +221,81 @@
 
     function isDlc(appid) {
         let description = APPINFO_KLDB[appid]['description']
-        return /该内容需要在 Steam 拥有基础游戏.*?才能运行/.test(description)
+        return /该内容需要在 Steam 拥有基础游戏.*?才能运行/.test(description) || /这是.*?的附加内容，但不包含基础游戏/.test(description)
     }
     
+    function parseSteamMarketResponseText(text,appid) {
+        let json = JSON.parse(text)
+        if (json['success']===true) {
+            let cardinfo = {
+                'raw_data': json,
+                'normal': {
+                    'count': 0,
+                    'avg_sell_price': 0,
+                    'cards': [
+                        /*
+                        {
+                            'hash_name': string
+                            'sell_price': number
+                        }
+                        */
+                    ]
+                    
+                },
+                'foil': {
+                    'count': 0,
+                    'avg_sell_price': 0,
+                    'cards': [],
+                },
+                'booster_pack': {
+                    'hash_name': '',
+                    'sell_price': 0
+                }
+            }
+
+            if (json['total_count']!==0) {
+                json.results.forEach((item,idx)=>{
+                    if (item.hash_name.includes('Booster Pack')) {
+                        cardinfo.booster_pack.hash_name = item.hash_name
+                        cardinfo.booster_pack.sell_price = item.sell_price
+                    } else if (item.hash_name.includes('(Foil')) {
+                        cardinfo.foil.cards.push({
+                            'hash_name':item.hash_name,
+                            'sell_price':item.sell_price
+                        })
+                    } else {
+                        cardinfo.normal.cards.push({
+                            'hash_name':item.hash_name,
+                            'sell_price':item.sell_price
+                        })
+                    }
+                })
+
+                let get_price = (v) => {return v.sell_price}
+                for (let type of ['normal','foil']) {
+                    cardinfo[type].count = cardinfo[type].cards.length
+                    cardinfo[type].avg_sell_price = averageArray(cardinfo[type].cards,get_price)
+                }
+
+                if (CARDINFO_ST['currency']===undefined)
+                    CARDINFO_ST['currency'] = json['results'][0]['sell_price_text'].replace(/\d+\.*\d*/,'').trim()
+            }
+            
+            CARDINFO_ST[appid] = cardinfo
+        }
+    }
+
     function getCardInfo(appid,callback) {
         if (CARDINFO_ST[appid] !== undefined) {
             callback()
         } else {
             request({
                 method: 'GET',
-                url: 'https://steamcommunity.com/market/search/render/?start=0&count=32&appid=753&category_753_Game[]=tag_app_'+appid+'&category_753_cardborder[]=tag_cardborder_0&category_753_item_class[]=tag_item_class_2&norender=1',
+                url: 'https://steamcommunity.com/market/search/render/?start=0&count=50&appid=753&category_753_Game[]=tag_app_'+appid+'&category_753_item_class[]=tag_item_class_2&category_753_item_class[]=tag_item_class_5&norender=1',
                 timeout: 8000,
                 onload: function (response) {
                     if (response.status === 200) {
-                        let json = JSON.parse(response.responseText)
-                        if (json['success']===true) {
-                            CARDINFO_ST[appid] = {
-                                'raw_data': json,
-                                'normal': {
-                                    'count': json['total_count'],
-                                    'average': 0
-                                },
-                                'foil': {},
-                            }
-                            if (json['total_count']!==0) {
-                                CARDINFO_ST[appid]['normal']['average'] = json['results'].reduce((v1,v2)=>{
-                                    return v1+v2['sell_price']
-                                },0) / json['total_count'] / 100
-
-                                if (CARDINFO_ST['currency']===undefined)
-                                    CARDINFO_ST['currency'] = json['results'][0]['sell_price_text'].replace(/\d+\.*\d*/,'').trim()
-                            }
-                        }
+                        parseSteamMarketResponseText(response.responseText, appid)
                     }
 
                     if (CARDINFO_ST[appid]===undefined) {
@@ -281,7 +325,7 @@
             name=remark=''
 
             appid = APPIDS[i] 
-            name = '<a href="https://store.steampowered.com/app/'+appid+'" target="_blank" class="steam-info-link">'+appinfo["name"]+'</a>'
+            name = '<a href="https://store.steampowered.com/app/'+appid+'" target="_blank" class="steam-info-link steam-info-loaded">'+appinfo["name"]+'</a>'
 
             if (appinfo['card']!==undefined)
                 ncklc = appinfo['card']['normal']['count']
@@ -290,9 +334,9 @@
             if (HIDE0CARD&&ncklc===0&&ncstc===0) continue 
 
             if (ncstc>0) {
-                ncavg = round2(cardinfo['normal']['average'])
-                nchalf = round2(Math.ceil(cardinfo['normal']['count']/2)*cardinfo['normal']['average'])
-                ncall = round2(cardinfo['normal']['count']*cardinfo['normal']['average'])
+                ncavg = round2(cardinfo['normal']['avg_sell_price']/100)
+                nchalf = round2(Math.ceil(cardinfo['normal']['count']/2)*cardinfo['normal']['avg_sell_price']/100)
+                ncall = round2(cardinfo['normal']['count']*cardinfo['normal']['avg_sell_price']/100)
             }
 
             if (ncklc!==ncstc) {
@@ -343,11 +387,18 @@
 
     function onclick_HIDE0CARD_BTN() {
         HIDE0CARD = !HIDE0CARD
+        
+        if (HIDE0CARD) {
+            HIDE0CARD_BTN.innerText = '显示无卡'
+        } else {
+            HIDE0CARD_BTN.innerText = '隐藏无卡'
+        }
+
         if (Object.keys(APPINFO_KLDB).length>0)
             makeTableWithData()
     }
 
-    function addUi() {
+    function addBasicUi() {
         MAIN_POST.getElementsByClassName('plc')[0].innerHTML = ''
             +'<br>'
             +'<div class="t_fsz" style="background-color: rgb(229, 237, 242);">'
@@ -371,19 +422,13 @@
 
     setInterval(()=>{
         if (document.getElementById('price_table')===null){
-            addUi()
+            addBasicUi()
         }
 
         if (REQUESTING) {
             CAL_BTN.className = 'text_block_grey btn_r1 btn_c1'
         } else {
             CAL_BTN.className = 'text_block btn_r1 btn_c1'
-        }
-
-        if (HIDE0CARD) {
-            HIDE0CARD_BTN.innerText = '显示无卡'
-        } else {
-            HIDE0CARD_BTN.innerText = '隐藏无卡'
         }
     },250)
 
