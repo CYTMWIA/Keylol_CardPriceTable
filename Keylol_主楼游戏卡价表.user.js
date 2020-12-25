@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         Keylol_主楼游戏卡价表
-// @version      2020.7.12.0
+// @version      2020.12.25.0
 // @description  计算主楼游戏的卡牌价格
 // @author       CYTMWIA
 // @match        http*://keylol.com/t*
@@ -86,7 +86,7 @@
     let APPIDS = new Set()
 
     function addAppidsFromString(s) {
-        let links = s.match(/https:\/\/store\.steampowered\.com\/app\/\d+/g)
+        let links = s.match(/https?:\/\/store\.steampowered\.com\/app\/\d+/g)
         if (links!==null)
             links.forEach((link,idx)=>{
                 let appid = link.split('/')[4]
